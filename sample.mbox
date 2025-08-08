@@ -1,0 +1,17 @@
+From MAILER-DAEMON Fri Jul  8 12:08:34 2005
+From: John Doe <johndoe@example.com>
+To: Jane Doe <janedoe@example.com>
+Subject: Test message 1
+Date: Fri, 8 Jul 2005 12:08:34 -0700
+Message-ID: <12345@local.machine.example>
+
+This is the first test message.
+
+From MAILER-DAEMON Fri Jul  8 12:09:15 2005
+From: John Doe <johndoe@example.com>
+To: Jane Doe <janedoe@example.com>
+Subject: Test message 2
+Date: Fri, 8 Jul 2005 12:09:15 -0700
+Message-ID: <67890@local.machine.example>
+
+This is the second test message.
