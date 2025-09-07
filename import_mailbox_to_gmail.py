@@ -37,6 +37,7 @@ from googleapiclient.http import MediaIoBaseUpload
 from google.oauth2 import service_account
 from google.auth.transport.requests import Request
 import google.auth
+from google.auth import impersonated_credentials
 
 APPLICATION_NAME = 'import-mailbox-to-gmail'
 APPLICATION_VERSION = '1.5'
@@ -137,7 +138,7 @@ def get_credentials(username):
   else:
     # Use Application Default Credentials to sign a JWT
     source_credentials, project_id = google.auth.default(scopes=SCOPES)
-    credentials = google.auth.impersonated_credentials.Credentials(
+    credentials = impersonated_credentials.Credentials(
         source_credentials=source_credentials,
         target_principal=args.service_account_email,
         target_scopes=SCOPES,
