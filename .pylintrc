@@ -12,7 +12,9 @@ disable=
     broad-exception-caught,
     global-statement,
     no-member,
-    ungrouped-imports
+    ungrouped-imports,
+    too-many-arguments,
+    too-many-positional-arguments
 
 [FORMAT]
 indent-string='  '
