@@ -20,9 +20,7 @@ limitations under the License.
 """
 
 import argparse
-import base64
 import io
-import json
 import logging
 import logging.handlers
 import mailbox
@@ -35,7 +33,6 @@ import httplib2
 from google_auth_httplib2 import AuthorizedHttp
 from googleapiclient.http import MediaIoBaseUpload
 from google.oauth2 import service_account
-from google.auth.transport.requests import Request
 import google.auth
 
 APPLICATION_NAME = 'import-mailbox-to-gmail'
