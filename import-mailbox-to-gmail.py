@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# pylint: disable=invalid-name
 """Import mbox files to a specified label for many users.
 
 Liron Newman lironn@google.com
@@ -27,13 +28,13 @@ import mailbox
 import os
 import sys
 
-from googleapiclient import discovery
-from googleapiclient.http import set_user_agent
 import httplib2
-from google_auth_httplib2 import AuthorizedHttp
-from googleapiclient.http import MediaIoBaseUpload
-from google.oauth2 import service_account
 import google.auth
+from google.oauth2 import service_account
+from google_auth_httplib2 import AuthorizedHttp
+from googleapiclient import discovery
+from googleapiclient.http import MediaIoBaseUpload
+from googleapiclient.http import set_user_agent
 
 APPLICATION_NAME = 'import-mailbox-to-gmail'
 APPLICATION_VERSION = '1.5'
@@ -97,10 +98,10 @@ parser.add_argument(
 parser.add_argument(
     '--log',
     required=False,
-    default='%s-%d.log' % (APPLICATION_NAME, os.getpid()),
+    default=f'{APPLICATION_NAME}-{os.getpid()}.log',
     help=
-    'Optional: Path to a the log file (default: %s-####.log in the current '
-    'directory, where #### is the process ID)' % APPLICATION_NAME)
+    f'Optional: Path to a the log file (default: {APPLICATION_NAME}-####.log in the current '
+    'directory, where #### is the process ID)')
 parser.add_argument(
     '--from_message',
     default=0,
@@ -115,7 +116,7 @@ parser.add_argument(
     help='Debug level of the HTTP library: 0=None (default), 4=Maximum.')
 parser.set_defaults(fix_msgid=True, replace_quoted_printable=True,
                     logging_level='INFO')
-args = None
+ARGS = None
 
 
 def get_credentials(username):
@@ -126,17 +127,17 @@ def get_credentials(username):
   Returns:
     Credentials, the obtained credential.
   """
-  if args.json:
+  if ARGS.json:
     credentials = service_account.Credentials.from_service_account_file(
-        args.json,
+        ARGS.json,
         scopes=SCOPES,
         subject=username)
   else:
     # Use Application Default Credentials to sign a JWT
-    source_credentials, project_id = google.auth.default(scopes=SCOPES)
+    source_credentials, _ = google.auth.default(scopes=SCOPES)
     credentials = google.auth.impersonated_credentials.Credentials(
         source_credentials=source_credentials,
-        target_principal=args.service_account_email,
+        target_principal=ARGS.service_account_email,
         target_scopes=SCOPES,
         subject=username)
 
@@ -161,16 +162,107 @@ def get_label_id_from_name(service, username, labels, labelname):
     }
     label = service.users().labels().create(
         userId=username,
-        body=label_object).execute(num_retries=args.num_retries)
+        body=label_object).execute(num_retries=ARGS.num_retries)
     logging.info("Label '%s' created", labelname)
     labels.append(label)
     return label['id']
-  except Exception as e:
+  except Exception: # pylint: disable=broad-exception-caught
     logging.exception("Can't create label '%s' for user %s", labelname, username)
     raise
 
 
-def process_mbox_files(username, service, labels):
+def import_message(service, username, message, label_id):
+  """Imports a single message to Gmail."""
+  metadata_object = {'labelIds': [label_id]}
+  try:
+    # Use media upload to allow messages more than 5mb.
+    # See https://developers.google.com/api-client-library/python/guide/media_upload
+    # and http://google-api-python-client.googlecode.com/hg/docs/epy/
+    # apiclient.http.MediaIoBaseUpload-class.html.
+    message_data = io.BytesIO(message.as_string().encode('utf-8'))
+    media = MediaIoBaseUpload(message_data, mimetype='message/rfc822')
+    message_response = service.users().messages().import_(
+        userId=username,
+        fields='id',
+        neverMarkSpam=True,
+        processForCalendar=False,
+        internalDateSource='dateHeader',
+        body=metadata_object,
+        media_body=media).execute(num_retries=ARGS.num_retries)
+    logging.debug("Imported mbox message '%s' to Gmail ID %s",
+                  message.get_from(),
+                  message_response['id'])
+    return True
+  except Exception: # pylint: disable=broad-exception-caught
+    logging.exception('Failed to import mbox message')
+    return False
+
+
+def process_message_headers(message):
+  """Fixes message headers."""
+  try:
+    if (ARGS.replace_quoted_printable and
+        'Content-Type' in message and
+        'text/quoted-printable' in message['Content-Type']):
+      message.replace_header(
+          'Content-Type', message['Content-Type'].replace(
+              'text/quoted-printable', 'text/plain'))
+      logging.info('Replaced text/quoted-printable with text/plain')
+  except Exception: # pylint: disable=broad-exception-caught
+    logging.exception(
+        'Failed to replace text/quoted-printable with text/plain '
+        'in Content-Type header')
+
+  try:
+    if ARGS.fix_msgid and 'Message-ID' in message:
+      msgid = message['Message-ID']
+      if msgid[0] != '<':
+        msgid = '<' + msgid
+        logging.info('Added < to Message-ID: %s', msgid)
+      if msgid[-1] != '>':
+        msgid += '>'
+        logging.info('Added > to Message-ID: %s', msgid)
+      message.replace_header('Message-ID', msgid)
+  except Exception: # pylint: disable=broad-exception-caught
+    logging.exception('Failed to fix brackets in Message-ID header')
+
+
+def process_mbox_file(full_filename, labelname, service, username, labels):
+  """Imports all messages from a single mbox file."""
+  try:
+    label_id = get_label_id_from_name(service, username, labels, labelname)
+  except Exception: # pylint: disable=broad-exception-caught
+    logging.error("Skipping label '%s' because it can't be created", labelname)
+    return None
+
+  logging.info("Using label name '%s', ID '%s'", labelname, label_id)
+
+  number_of_successes_in_label = 0
+  number_of_failures_in_label = 0
+
+  mbox = mailbox.mbox(full_filename)
+  for index, message in enumerate(mbox):
+    if index < ARGS.from_message:
+      continue
+    logging.info("Processing message %d in label '%s'", index, labelname)
+
+    process_message_headers(message)
+
+    if import_message(service, username, message, label_id):
+      number_of_successes_in_label += 1
+    else:
+      number_of_failures_in_label += 1
+
+  logging.info("Finished processing '%s'. %d messages imported "
+               "successfully, %d messages failed.",
+               full_filename,
+               number_of_successes_in_label,
+               number_of_failures_in_label)
+
+  return number_of_successes_in_label, number_of_failures_in_label
+
+
+def process_mbox_files(username, service, labels): # pylint: disable=too-many-locals
   """Iterates over the mbox files found in the user's subdir and imports them.
 
   Args:
@@ -189,14 +281,14 @@ def process_mbox_files(username, service, labels):
   number_of_labels_failed = 0
   number_of_messages_imported_without_error = 0
   number_of_messages_failed = 0
-  base_path = os.path.join(args.dir, username)
+  base_path = os.path.join(ARGS.dir, username)
   for root, dirs, files in os.walk(base_path):
-    for dir in dirs:
+    for dirname in dirs:
       try:
-        labelname = os.path.join(root[len(base_path) + 1:], dir)
+        labelname = os.path.join(root[len(base_path) + 1:], dirname)
         get_label_id_from_name(service, username, labels, labelname)
-      except Exception as e:
-        logging.error("Labels under '%s' may not nest correctly", dir)
+      except Exception: # pylint: disable=broad-exception-caught
+        logging.error("Labels under '%s' may not nest correctly", dirname)
     for file in files:
       filename = root[len(base_path) + 1:]
       if filename:
@@ -222,78 +314,23 @@ def process_mbox_files(username, service, labels):
         full_filename += os.path.join(full_filename, 'mbox')
         logging.info("Using '%s' instead of the directory", full_filename)
       logging.info("Starting processing of '%s'", full_filename)
-      number_of_successes_in_label = 0
-      number_of_failures_in_label = 0
-      mbox = mailbox.mbox(full_filename)
-      try:
-        label_id = get_label_id_from_name(service, username, labels, labelname)
-      except Exception as e:
-        logging.error("Skipping label '%s' because it can't be created", labelname)
+
+      result = process_mbox_file(
+          full_filename, labelname, service, username, labels)
+
+      if result is None:
         continue
-      logging.info("Using label name '%s', ID '%s'", labelname, label_id)
-      for index, message in enumerate(mbox):
-        if index < args.from_message:
-          continue
-        logging.info("Processing message %d in label '%s'", index, labelname)
-        try:
-          if (args.replace_quoted_printable and
-              'Content-Type' in message and
-              'text/quoted-printable' in message['Content-Type']):
-            message.replace_header(
-                'Content-Type', message['Content-Type'].replace(
-                    'text/quoted-printable', 'text/plain'))
-            logging.info('Replaced text/quoted-printable with text/plain')
-        except Exception as e:
-          logging.exception(
-              'Failed to replace text/quoted-printable with text/plain '
-              'in Content-Type header')
-        try:
-          if args.fix_msgid and 'Message-ID' in message:
-            msgid = message['Message-ID']
-            if msgid[0] != '<':
-              msgid = '<' + msgid
-              logging.info('Added < to Message-ID: %s', msgid)
-            if msgid[-1] != '>':
-              msgid += '>'
-              logging.info('Added > to Message-ID: %s', msgid)
-            message.replace_header('Message-ID', msgid)
-        except Exception as e:
-          logging.exception('Failed to fix brackets in Message-ID header')
-        metadata_object = {'labelIds': [label_id]}
-        try:
-          # Use media upload to allow messages more than 5mb.
-          # See https://developers.google.com/api-client-library/python/guide/media_upload
-          # and http://google-api-python-client.googlecode.com/hg/docs/epy/apiclient.http.MediaIoBaseUpload-class.html.
-          message_data = io.BytesIO(message.as_string().encode('utf-8'))
-          media = MediaIoBaseUpload(message_data, mimetype='message/rfc822')
-          message_response = service.users().messages().import_(
-              userId=username,
-              fields='id',
-              neverMarkSpam=True,
-              processForCalendar=False,
-              internalDateSource='dateHeader',
-              body=metadata_object,
-              media_body=media).execute(num_retries=args.num_retries)
-          number_of_successes_in_label += 1
-          logging.debug("Imported mbox message '%s' to Gmail ID %s",
-                        message.get_from(),
-                        message_response['id'])
-        except Exception as e:
-          number_of_failures_in_label += 1
-          logging.exception('Failed to import mbox message')
-      logging.info("Finished processing '%s'. %d messages imported "
-                   "successfully, %d messages failed.",
-                   full_filename,
-                   number_of_successes_in_label,
-                   number_of_failures_in_label)
-      if number_of_failures_in_label == 0:
+
+      successes, failures = result
+
+      if failures == 0:
         number_of_labels_imported_without_error += 1
-      elif number_of_successes_in_label > 0:
+      elif successes > 0:
         number_of_labels_imported_with_some_errors += 1
       else:
         number_of_labels_failed += 1
-      number_of_messages_imported_without_error += number_of_successes_in_label
-      number_of_messages_failed += number_of_failures_in_label
+      number_of_messages_imported_without_error += successes
+      number_of_messages_failed += failures
   return (number_of_labels_imported_without_error,     # 0
           number_of_labels_imported_with_some_errors,  # 1
           number_of_labels_failed,                     # 2
@@ -301,15 +338,11 @@ def process_mbox_files(username, service, labels):
           number_of_messages_failed)                   # 4
 
 
-def main(argv):
-  """Import multiple users' mbox files to Gmail.
-
-  """
-  global args
-  args = parser.parse_args(argv)
-  httplib2.debuglevel = args.httplib2debuglevel
-  # Use args.logging_level if defined.
-  logging_level = getattr(args, 'logging_level', 'INFO')
+def setup_logging():
+  """Configures logging."""
+  httplib2.debuglevel = ARGS.httplib2debuglevel
+  # Use ARGS.logging_level if defined.
+  logging_level = getattr(ARGS, 'logging_level', 'INFO')
 
   # Default logging to standard output
   logging.basicConfig(
@@ -318,7 +351,7 @@ def main(argv):
       datefmt='%H:%M:%S')
 
   # More detailed logging to file
-  file_handler = logging.handlers.RotatingFileHandler(args.log,
+  file_handler = logging.handlers.RotatingFileHandler(ARGS.log,
                                                       maxBytes=1024 * 1024 * 32,
                                                       backupCount=8)
   file_formatter = logging.Formatter(
@@ -333,8 +366,56 @@ def main(argv):
                APPLICATION_VERSION,
                sys.version)
   logging.info('Arguments:')
-  for arg, value in sorted(vars(args).items()):
+  for arg, value in sorted(vars(ARGS).items()):
     logging.info('\t%s: %r', arg, value)
+
+
+def process_user(username):
+  """Imports for a single user. Returns stats tuple."""
+  try:
+    logging.info('Processing user %s', username)
+    try:
+      credentials = get_credentials(username)
+      http = set_user_agent(
+          httplib2.Http(),
+          f'{APPLICATION_NAME}-{APPLICATION_VERSION}')
+      authed_http = AuthorizedHttp(credentials, http=http)
+      service = discovery.build('gmail', 'v1', http=authed_http) # pylint: disable=no-member
+    except Exception: # pylint: disable=broad-exception-caught
+      logging.error("Can't get access token for user %s", username)
+      raise
+
+    try:
+      # pylint: disable=no-member
+      results = service.users().labels().list(
+          userId=username,
+          fields='labels(id,name)').execute(num_retries=ARGS.num_retries)
+      labels = results.get('labels', [])
+    except Exception: # pylint: disable=broad-exception-caught
+      logging.error("Can't get labels for user %s", username)
+      raise
+
+    try:
+      result = process_mbox_files(username, service, labels)
+    except Exception: # pylint: disable=broad-exception-caught
+      logging.error("Can't process mbox files for user %s", username)
+      raise
+
+    return result
+
+  except Exception: # pylint: disable=broad-exception-caught
+    logging.exception("Can't process user %s", username)
+    return None
+
+
+def main(argv): # pylint: disable=too-many-locals
+  """Import multiple users' mbox files to Gmail.
+
+  """
+  global ARGS # pylint: disable=global-statement
+  ARGS = parser.parse_args(argv)
+
+  setup_logging()
 
   number_of_labels_imported_without_error = 0
   number_of_labels_imported_with_some_errors = 0
@@ -345,34 +426,9 @@ def main(argv):
   number_of_users_imported_with_some_errors = 0
   number_of_users_failed = 0
 
-  for username in next(os.walk(args.dir))[1]:
-    try:
-      logging.info('Processing user %s', username)
-      try:
-        credentials = get_credentials(username)
-        http = set_user_agent(
-            httplib2.Http(),
-            '%s-%s' % (APPLICATION_NAME, APPLICATION_VERSION))
-        authed_http = AuthorizedHttp(credentials, http=http)
-        service = discovery.build('gmail', 'v1', http=authed_http)
-      except Exception as e:
-        logging.error("Can't get access token for user %s", username)
-        raise
-
-      try:
-        results = service.users().labels().list(
-            userId=username,
-            fields='labels(id,name)').execute(num_retries=args.num_retries)
-        labels = results.get('labels', [])
-      except Exception as e:
-        logging.error("Can't get labels for user %s", username)
-        raise
-
-      try:
-        result = process_mbox_files(username, service, labels)
-      except Exception as e:
-        logging.error("Can't process mbox files for user %s", username)
-        raise
+  for username in next(os.walk(ARGS.dir))[1]:
+    result = process_user(username)
+    if result:
       if result[2] == 0 and result[4] == 0:
         number_of_users_imported_without_error += 1
       elif result[0] > 0 or result[3] > 0:
@@ -392,10 +448,10 @@ def main(argv):
                    result[2],
                    result[3],
                    result[4])
-    except Exception as e:
+    else:
       number_of_users_failed += 1
-      logging.exception("Can't process user %s", username)
-  logging.info("*** Done importing all users from directory '%s'", args.dir)
+
+  logging.info("*** Done importing all users from directory '%s'", ARGS.dir)
   logging.info('*** Import summary:')
   logging.info('    %d users imported with no failures',
                number_of_users_imported_without_error)
@@ -415,7 +471,7 @@ def main(argv):
                number_of_messages_failed)
   if (number_of_messages_failed + number_of_labels_failed +
       number_of_users_failed > 0):
-    logging.info('*** Check log file %s for detailed errors.', args.log)
+    logging.info('*** Check log file %s for detailed errors.', ARGS.log)
   logging.info('Finished.\n\n')
 
 

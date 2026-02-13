@@ -86,7 +86,7 @@ def get_label_id(service, user_email, label_name):
       break
   return None
 
-def verify_import(service, user_email, label_name, message_id, expected_date, expected_subject):
+def verify_import(service, user_email, label_name, message_id, expected_date, expected_subject): # pylint: disable=too-many-arguments,too-many-positional-arguments
   """Verifies that the imported message exists in Gmail with correct attributes."""
   print(f"\nVerifying import for user: {user_email}")
 
@@ -146,12 +146,8 @@ def verify_import(service, user_email, label_name, message_id, expected_date, ex
   return True
 
 
-def main():
-  """Main function to run the interactive test."""
-  print("Interactive Real Import Test")
-  print("----------------------------")
-
-  # Get credentials path
+def get_user_inputs():
+  """Gets credentials path and target email from args or input."""
   if len(sys.argv) > 1:
     creds_path = sys.argv[1]
   else:
@@ -161,7 +157,6 @@ def main():
     print(f"Error: File '{creds_path}' not found.")
     sys.exit(1)
 
-  # Get target email
   if len(sys.argv) > 2:
     target_email = sys.argv[2]
   else:
@@ -171,22 +166,39 @@ def main():
     print("Error: Target email is required.")
     sys.exit(1)
 
+  return creds_path, target_email
+
+
+def generate_test_data(user_dir):
+  """Generates test mbox data."""
+  dst_mbox_name = "Test Import.mbox"
+  dst_mbox_path = os.path.join(user_dir, dst_mbox_name)
+
+  # Generate test data
+  message_id = f"<{uuid.uuid4()}@test.local>"
+  date_string = "Mon, 20 Jan 2025 12:00:00 -0000"
+
+  # Always create a fresh dummy mbox to ensure controlled test data
+  create_dummy_mbox(dst_mbox_path, message_id, date_string)
+
+  return message_id, date_string
+
+
+def main():
+  """Main function to run the interactive test."""
+  print("Interactive Real Import Test")
+  print("----------------------------")
+
+  creds_path, target_email = get_user_inputs()
+
   # Setup temp directory
   temp_dir = tempfile.mkdtemp(prefix="import_test_")
   try:
     user_dir = os.path.join(temp_dir, target_email)
     os.makedirs(user_dir)
 
-    dst_mbox_name = "Test Import.mbox"
-    dst_mbox_path = os.path.join(user_dir, dst_mbox_name)
-
-    # Generate test data
-    message_id = f"<{uuid.uuid4()}@test.local>"
-    date_string = "Mon, 20 Jan 2025 12:00:00 -0000"
+    message_id, date_string = generate_test_data(user_dir)
     subject_string = "Test Import Message"
-
-    # Always create a fresh dummy mbox to ensure controlled test data
-    create_dummy_mbox(dst_mbox_path, message_id, date_string)
 
     print(f"\nPrepared test data in {temp_dir}")
     print(f"Message-ID: {message_id}")
@@ -215,7 +227,7 @@ def main():
         sys.exit(0)
       else:
         sys.exit(1)
-    except Exception as e:
+    except Exception as e: # pylint: disable=broad-exception-caught
       print(f"Verification failed with error: {e}")
       print("Note: Ensure your service account has "
             "'https://www.googleapis.com/auth/gmail.readonly' scope authorized.")
@@ -224,7 +236,7 @@ def main():
   except subprocess.CalledProcessError as e:
     print(f"\nImport process failed with exit code {e.returncode}")
     sys.exit(e.returncode)
-  except Exception as e:
+  except Exception as e: # pylint: disable=broad-exception-caught
     print(f"\nAn error occurred: {e}")
     sys.exit(1)
   finally:
