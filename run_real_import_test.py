@@ -12,6 +12,7 @@ import tempfile
 import subprocess
 import mailbox
 import time
+import email.message
 
 from google.oauth2 import service_account
 from googleapiclient import discovery
@@ -34,6 +35,19 @@ def count_messages_in_mbox(mbox_path):
   """Counts messages in an mbox file."""
   mbox = mailbox.mbox(mbox_path)
   return len(mbox)
+
+def create_dummy_mbox(filepath):
+  """Creates a dummy mbox file with one message if sample.mbox is missing."""
+  print("Creating dummy mbox file...")
+  mbox = mailbox.mbox(filepath)
+  msg = email.message.Message()
+  msg['Subject'] = 'Test Message'
+  msg['From'] = 'sender@example.com'
+  msg['To'] = 'recipient@example.com'
+  msg.set_payload('This is a test message body.')
+  mbox.add(msg)
+  mbox.flush()
+  mbox.close()
 
 def verify_import(service, user_email, label_name, expected_count):
   """Verifies that the imported messages exist in Gmail."""
@@ -107,20 +121,22 @@ def main():
     user_dir = os.path.join(temp_dir, target_email)
     os.makedirs(user_dir)
 
-    # Copy sample.mbox
+    dst_mbox_name = "Test Import.mbox"
+    dst_mbox_path = os.path.join(user_dir, dst_mbox_name)
+
+    # Copy sample.mbox or create dummy
     src_mbox = "sample.mbox"
     if not os.path.exists(src_mbox):
       # Try to find it if not in current dir
       script_dir = os.path.dirname(os.path.abspath(__file__))
       src_mbox = os.path.join(script_dir, "sample.mbox")
 
-    if not os.path.exists(src_mbox):
-      print("Error: sample.mbox not found.")
-      sys.exit(1)
-
-    dst_mbox_name = "Test Import.mbox"
-    dst_mbox_path = os.path.join(user_dir, dst_mbox_name)
-    shutil.copy(src_mbox, dst_mbox_path)
+    if os.path.exists(src_mbox):
+      print(f"Using existing {src_mbox}")
+      shutil.copy(src_mbox, dst_mbox_path)
+    else:
+      print("sample.mbox not found, generating dummy data.")
+      create_dummy_mbox(dst_mbox_path)
 
     expected_msg_count = count_messages_in_mbox(dst_mbox_path)
     print(f"\nPrepared test data in {temp_dir}")

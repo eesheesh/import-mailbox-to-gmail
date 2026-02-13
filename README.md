@@ -81,13 +81,15 @@ notes below.
 You can either run the pre-compiled executable (easiest) or run the Python
 script directly.
 
-### Option 1: Using the executable (Recommended)
+### Option 1: Using the executable (Recommended for Windows/macOS)
 
 1. Download the latest release for your operating system (e.g.,
    `import-mailbox-to-gmail.exe` for Windows) from the Releases page.
+   **Note**: Executables are provided for Windows and macOS only. Linux users
+   should use Option 2.
 
 2. Open a **Command Prompt** (CMD) window (on Windows) / **Terminal** window (on
-   Linux/Mac).
+   Mac).
 
 3. Create a folder for the mbox files, for example `C:\mbox` (see step 5 below).
 
