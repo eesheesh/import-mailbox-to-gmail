@@ -31,7 +31,7 @@ python3 \
     --console \
     --osx-bundle-identifier "${NAME}" \
     --onefile \
-    import-mailbox-to-gmail.py
+    import_mailbox_to_gmail.py
 _exit_code="$?"
 
 if [[ "${_exit_code}" -ne 0 ]]; then
