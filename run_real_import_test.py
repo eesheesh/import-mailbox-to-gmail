@@ -3,7 +3,7 @@
 Interactive Real Import Test Script.
 
 This script allows users to test the import functionality using real credentials
-and sample data, and then verifies the import by checking the Gmail API.
+and generated test data, and then verifies the import by checking the Gmail API.
 """
 import os
 import sys
@@ -13,9 +13,13 @@ import subprocess
 import mailbox
 import time
 import email.message
+import uuid
+import random
+import logging
 
 from google.oauth2 import service_account
 from googleapiclient import discovery
+from googleapiclient.errors import HttpError
 
 # Scopes needed for import and verification
 SCOPES = [
@@ -24,6 +28,9 @@ SCOPES = [
     'https://www.googleapis.com/auth/gmail.readonly'  # Added for verification
 ]
 
+# Configure logging for the test script
+logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+
 def get_service(creds_path, user_email):
   """Authenticates and returns the Gmail API service."""
   creds = service_account.Credentials.from_service_account_file(
@@ -31,36 +38,60 @@ def get_service(creds_path, user_email):
   )
   return discovery.build('gmail', 'v1', credentials=creds)
 
-def count_messages_in_mbox(mbox_path):
-  """Counts messages in an mbox file."""
-  mbox = mailbox.mbox(mbox_path)
-  return len(mbox)
+def execute_with_retry(request, num_retries=5):
+  """Executes an API request with exponential backoff retries."""
+  for n in range(num_retries):
+    try:
+      return request.execute()
+    except (HttpError, OSError) as e:
+      if n == num_retries - 1:
+        raise
+      sleep_time = (2 ** n) + random.random()
+      logging.warning(
+          "Request failed with %s, retrying in %.2f seconds...", e, sleep_time
+      )
+      time.sleep(sleep_time)
+  return None
 
-def create_dummy_mbox(filepath):
-  """Creates a dummy mbox file with one message if sample.mbox is missing."""
-  print("Creating dummy mbox file...")
+def create_dummy_mbox(filepath, message_id, date_string):
+  """Creates a dummy mbox file with one message having specific headers."""
+  print(f"Creating dummy mbox file at {filepath}...")
   mbox = mailbox.mbox(filepath)
   msg = email.message.Message()
-  msg['Subject'] = 'Test Message'
+  msg['Subject'] = 'Test Import Message'
   msg['From'] = 'sender@example.com'
   msg['To'] = 'recipient@example.com'
-  msg.set_payload('This is a test message body.')
+  msg['Date'] = date_string
+  msg['Message-ID'] = message_id
+  msg.set_payload('This is a test message body for verifying import functionality.')
   mbox.add(msg)
   mbox.flush()
   mbox.close()
 
-def verify_import(service, user_email, label_name, expected_count):
-  """Verifies that the imported messages exist in Gmail."""
+def get_label_id(service, user_email, label_name):
+  """Finds the label ID for a given label name, handling pagination."""
+  page_token = None
+  while True:
+    response = execute_with_retry(
+        service.users().labels().list(
+            userId=user_email, pageToken=page_token
+        )
+    )
+    labels = response.get('labels', [])
+    for label in labels:
+      if label['name'].lower() == label_name.lower():
+        return label['id']
+    page_token = response.get('nextPageToken')
+    if not page_token:
+      break
+  return None
+
+def verify_import(service, user_email, label_name, message_id, expected_date, expected_subject):
+  """Verifies that the imported message exists in Gmail with correct attributes."""
   print(f"\nVerifying import for user: {user_email}")
 
   # 1. Find the label ID
-  results = service.users().labels().list(userId=user_email).execute()
-  labels = results.get('labels', [])
-  label_id = None
-  for label in labels:
-    if label['name'].lower() == label_name.lower():
-      label_id = label['id']
-      break
+  label_id = get_label_id(service, user_email, label_name)
 
   if not label_id:
     print(f"Error: Label '{label_name}' not found in Gmail.")
@@ -68,26 +99,51 @@ def verify_import(service, user_email, label_name, expected_count):
 
   print(f"Found label '{label_name}' with ID: {label_id}")
 
-  # 2. List messages with that label
-  # Give Gmail a moment to index if needed (though API is usually fast)
-  time.sleep(2)
+  # 2. Search for the message by Message-ID
+  query = f"rfc822msgid:{message_id}"
+  print(f"Searching for message with query: {query}")
 
-  response = service.users().messages().list(
-      userId=user_email, labelIds=[label_id], includeSpamTrash=True
-  ).execute()
+  response = execute_with_retry(
+      service.users().messages().list(
+          userId=user_email, q=query, includeSpamTrash=True
+      )
+  )
 
   messages = response.get('messages', [])
-  actual_count = len(messages)
 
-  print(f"Expected messages: {expected_count}")
-  print(f"Actual messages found in label: {actual_count}")
+  if not messages:
+    print("FAILURE: Message not found by Message-ID.")
+    return False
 
-  if actual_count == expected_count:
-    print("SUCCESS: Import verification passed!")
-    return True
+  # Get full message details
+  msg_id = messages[0]['id']
+  print(f"Found message with Gmail ID: {msg_id}")
 
-  print("FAILURE: Message count mismatch.")
-  return False
+  msg_detail = execute_with_retry(
+      service.users().messages().get(userId=user_email, id=msg_id)
+  )
+
+  # Check Label
+  if label_id not in msg_detail.get('labelIds', []):
+    print(f"FAILURE: Message does not have the expected label ID {label_id}.")
+    print(f"Actual labels: {msg_detail.get('labelIds')}")
+    return False
+
+  # Check Headers (Subject, Date)
+  headers = msg_detail.get('payload', {}).get('headers', [])
+  subject = next((h['value'] for h in headers if h['name'] == 'Subject'), None)
+  date = next((h['value'] for h in headers if h['name'] == 'Date'), None)
+
+  if subject != expected_subject:
+    print(f"FAILURE: Subject mismatch. Expected: '{expected_subject}', Found: '{subject}'")
+    return False
+
+  if date != expected_date:
+    print(f"FAILURE: Date mismatch. Expected: '{expected_date}', Found: '{date}'")
+    return False
+
+  print("SUCCESS: Import verification passed! Message found with correct Label, Subject, and Date.")
+  return True
 
 
 def main():
@@ -124,23 +180,16 @@ def main():
     dst_mbox_name = "Test Import.mbox"
     dst_mbox_path = os.path.join(user_dir, dst_mbox_name)
 
-    # Copy sample.mbox or create dummy
-    src_mbox = "sample.mbox"
-    if not os.path.exists(src_mbox):
-      # Try to find it if not in current dir
-      script_dir = os.path.dirname(os.path.abspath(__file__))
-      src_mbox = os.path.join(script_dir, "sample.mbox")
+    # Generate test data
+    message_id = f"<{uuid.uuid4()}@test.local>"
+    date_string = "Mon, 20 Jan 2025 12:00:00 -0000"
+    subject_string = "Test Import Message"
 
-    if os.path.exists(src_mbox):
-      print(f"Using existing {src_mbox}")
-      shutil.copy(src_mbox, dst_mbox_path)
-    else:
-      print("sample.mbox not found, generating dummy data.")
-      create_dummy_mbox(dst_mbox_path)
+    # Always create a fresh dummy mbox to ensure controlled test data
+    create_dummy_mbox(dst_mbox_path, message_id, date_string)
 
-    expected_msg_count = count_messages_in_mbox(dst_mbox_path)
     print(f"\nPrepared test data in {temp_dir}")
-    print(f"Mbox contains {expected_msg_count} messages.")
+    print(f"Message-ID: {message_id}")
     print(f"Importing into {target_email} with label 'Test Import'...")
 
     # Run import
@@ -160,7 +209,7 @@ def main():
       service = get_service(creds_path, target_email)
       # The label name is derived from the filename "Test Import.mbox" -> "Test Import"
       label_name = "Test Import"
-      if verify_import(service, target_email, label_name, expected_msg_count):
+      if verify_import(service, target_email, label_name, message_id, date_string, subject_string):
         sys.exit(0)
       else:
         sys.exit(1)
