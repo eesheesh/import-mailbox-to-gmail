@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Import mbox files to a specified label for many users.
 
@@ -29,13 +29,14 @@ import mailbox
 import os
 import sys
 
-from apiclient import discovery
-from apiclient.http import set_user_agent
+from googleapiclient import discovery
+from googleapiclient.http import set_user_agent
 import httplib2
-from apiclient.http import MediaIoBaseUpload
-from oauth2client.service_account import ServiceAccountCredentials
-import oauth2client.tools
-import OpenSSL  # Required by Google API library, but not checked by it
+from google_auth_httplib2 import AuthorizedHttp
+from googleapiclient.http import MediaIoBaseUpload
+from google.oauth2 import service_account
+from google.auth.transport.requests import Request
+import google.auth
 
 APPLICATION_NAME = 'import-mailbox-to-gmail'
 APPLICATION_VERSION = '1.5'
@@ -47,7 +48,6 @@ SCOPES = ['https://www.googleapis.com/auth/gmail.insert',
 parser = argparse.ArgumentParser(
     description='Import mbox files to a specified label for many users.',
     formatter_class=argparse.RawDescriptionHelpFormatter,
-    parents=[oauth2client.tools.argparser],
     epilog=
     """
  * The directory needs to have a subdirectory for each user (with the full
@@ -62,10 +62,13 @@ parser = argparse.ArgumentParser(
 
  * See the README at https://goo.gl/JnFt0x for more usage information.
 """)
-parser.add_argument(
+group = parser.add_mutually_exclusive_group(required=True)
+group.add_argument(
     '--json',
-    required=True,
     help='Path to the JSON key file from https://console.developers.google.com')
+group.add_argument(
+    '--service_account_email',
+    help='The email address of the service account to use for signing JWTs')
 parser.add_argument(
     '--dir',
     required=True,
@@ -102,20 +105,20 @@ parser.add_argument(
     'Optional: Path to a the log file (default: %s-####.log in the current '
     'directory, where #### is the process ID)' % APPLICATION_NAME)
 parser.add_argument(
-    '--httplib2debuglevel',
-    default=0,
-    type=int,
-    help='Debug level of the HTTP library: 0=None (default), 4=Maximum.')
-parser.add_argument(
     '--from_message',
     default=0,
     type=int,
     help=
       'Message number to resume from, affects ALL users and ALL '
       'mbox files (default: 0)')
+parser.add_argument(
+    '--httplib2debuglevel',
+    default=0,
+    type=int,
+    help='Debug level of the HTTP library: 0=None (default), 4=Maximum.')
 parser.set_defaults(fix_msgid=True, replace_quoted_printable=True,
                     logging_level='INFO')
-args = parser.parse_args()
+args = None
 
 
 def get_credentials(username):
@@ -126,9 +129,19 @@ def get_credentials(username):
   Returns:
     Credentials, the obtained credential.
   """
-  credentials = ServiceAccountCredentials.from_json_keyfile_name(
-      args.json,
-      scopes=SCOPES).create_delegated(username)
+  if args.json:
+    credentials = service_account.Credentials.from_service_account_file(
+        args.json,
+        scopes=SCOPES,
+        subject=username)
+  else:
+    # Use Application Default Credentials to sign a JWT
+    source_credentials, project_id = google.auth.default(scopes=SCOPES)
+    credentials = google.auth.impersonated_credentials.Credentials(
+        source_credentials=source_credentials,
+        target_principal=args.service_account_email,
+        target_scopes=SCOPES,
+        subject=username)
 
   return credentials
 
@@ -155,7 +168,7 @@ def get_label_id_from_name(service, username, labels, labelname):
     logging.info("Label '%s' created", labelname)
     labels.append(label)
     return label['id']
-  except Exception:
+  except Exception as e:
     logging.exception("Can't create label '%s' for user %s", labelname, username)
     raise
 
@@ -185,12 +198,12 @@ def process_mbox_files(username, service, labels):
       try:
         labelname = os.path.join(root[len(base_path) + 1:], dir)
         get_label_id_from_name(service, username, labels, labelname)
-      except Exception:
+      except Exception as e:
         logging.error("Labels under '%s' may not nest correctly", dir)
     for file in files:
       filename = root[len(base_path) + 1:]
       if filename:
-        filename += u'/'
+        filename += '/'
       filename += file
       labelname, ext = os.path.splitext(filename)
       full_filename = os.path.join(root, file)
@@ -217,7 +230,7 @@ def process_mbox_files(username, service, labels):
       mbox = mailbox.mbox(full_filename)
       try:
         label_id = get_label_id_from_name(service, username, labels, labelname)
-      except Exception:
+      except Exception as e:
         logging.error("Skipping label '%s' because it can't be created", labelname)
         continue
       logging.info("Using label name '%s', ID '%s'", labelname, label_id)
@@ -233,7 +246,7 @@ def process_mbox_files(username, service, labels):
                 'Content-Type', message['Content-Type'].replace(
                     'text/quoted-printable', 'text/plain'))
             logging.info('Replaced text/quoted-printable with text/plain')
-        except Exception:
+        except Exception as e:
           logging.exception(
               'Failed to replace text/quoted-printable with text/plain '
               'in Content-Type header')
@@ -247,17 +260,14 @@ def process_mbox_files(username, service, labels):
               msgid += '>'
               logging.info('Added > to Message-ID: %s', msgid)
             message.replace_header('Message-ID', msgid)
-        except Exception:
+        except Exception as e:
           logging.exception('Failed to fix brackets in Message-ID header')
         metadata_object = {'labelIds': [label_id]}
         try:
           # Use media upload to allow messages more than 5mb.
           # See https://developers.google.com/api-client-library/python/guide/media_upload
           # and http://google-api-python-client.googlecode.com/hg/docs/epy/apiclient.http.MediaIoBaseUpload-class.html.
-          if sys.version_info.major == 2:
-            message_data = io.BytesIO(message.as_string())
-          else:
-            message_data = io.StringIO(message.as_string())
+          message_data = io.BytesIO(message.as_string().encode('utf-8'))
           media = MediaIoBaseUpload(message_data, mimetype='message/rfc822')
           message_response = service.users().messages().import_(
               userId=username,
@@ -271,7 +281,7 @@ def process_mbox_files(username, service, labels):
           logging.debug("Imported mbox message '%s' to Gmail ID %s",
                         message.get_from(),
                         message_response['id'])
-        except Exception:
+        except Exception as e:
           number_of_failures_in_label += 1
           logging.exception('Failed to import mbox message')
       logging.info("Finished processing '%s'. %d messages imported "
@@ -294,16 +304,15 @@ def process_mbox_files(username, service, labels):
           number_of_messages_failed)                   # 4
 
 
-def main():
+def main(argv):
   """Import multiple users' mbox files to Gmail.
 
   """
+  global args
+  args = parser.parse_args(argv)
   httplib2.debuglevel = args.httplib2debuglevel
   # Use args.logging_level if defined.
-  try:
-    logging_level = args.logging_level
-  except AttributeError:
-    logging_level = 'INFO'
+  logging_level = getattr(args, 'logging_level', 'INFO')
 
   # Default logging to standard output
   logging.basicConfig(
@@ -339,16 +348,17 @@ def main():
   number_of_users_imported_with_some_errors = 0
   number_of_users_failed = 0
 
-  for username in next(os.walk(unicode(args.dir)))[1]:
+  for username in next(os.walk(args.dir))[1]:
     try:
       logging.info('Processing user %s', username)
       try:
         credentials = get_credentials(username)
-        http = credentials.authorize(set_user_agent(
+        http = set_user_agent(
             httplib2.Http(),
-            '%s-%s' % (APPLICATION_NAME, APPLICATION_VERSION)))
-        service = discovery.build('gmail', 'v1', http=http)
-      except Exception:
+            '%s-%s' % (APPLICATION_NAME, APPLICATION_VERSION))
+        authed_http = AuthorizedHttp(credentials, http=http)
+        service = discovery.build('gmail', 'v1', http=authed_http)
+      except Exception as e:
         logging.error("Can't get access token for user %s", username)
         raise
 
@@ -357,13 +367,13 @@ def main():
             userId=username,
             fields='labels(id,name)').execute(num_retries=args.num_retries)
         labels = results.get('labels', [])
-      except Exception:
+      except Exception as e:
         logging.error("Can't get labels for user %s", username)
         raise
 
       try:
         result = process_mbox_files(username, service, labels)
-      except Exception:
+      except Exception as e:
         logging.error("Can't process mbox files for user %s", username)
         raise
       if result[2] == 0 and result[4] == 0:
@@ -385,7 +395,7 @@ def main():
                    result[2],
                    result[3],
                    result[4])
-    except Exception:
+    except Exception as e:
       number_of_users_failed += 1
       logging.exception("Can't process user %s", username)
   logging.info("*** Done importing all users from directory '%s'", args.dir)
@@ -413,4 +423,4 @@ def main():
 
 
 if __name__ == '__main__':
-  main()
+  main(sys.argv[1:])
