@@ -71,9 +71,23 @@ into the mailboxes of all users in your domain.
 You can now use the JSON file to authorize programs to access the Gmail API
 "insert" and "label" scopes of all users in your Google Workspace domain.
 
-### B. Importing mbox files using import-mailbox-to-gmail.py
+### B. Importing mbox files
 
 **Important**: If you're planning to import mail from Apple Mail.app, see the notes below.
+
+You can either run the pre-compiled executable (easiest) or run the Python script directly.
+
+#### Option 1: Using the executable (Recommended)
+
+1. Download the latest release for your operating system (e.g., `import-mailbox-to-gmail.exe` for Windows) from the Releases page.
+
+2. Open a **Command Prompt** (CMD) window (on Windows) / **Terminal** window (on Linux/Mac).
+
+3. Create a folder for the mbox files, for example `C:\mbox` (see step 5 below).
+
+4. Follow steps 6-8 below, replacing `python import-mailbox-to-gmail.py` with the path to your downloaded executable.
+
+#### Option 2: Running the Python script
 
 1. Download the script - [import-mailbox-to-gmail.py](https://github.com/google/import-mailbox-to-gmail/releases/download/v1.5/import-mailbox-to-gmail.py).
 
@@ -83,17 +97,18 @@ You can now use the JSON file to authorize programs to access the Gmail API
 3. Open a **Command Prompt** (CMD) window (on Windows) / **Terminal** window
    (on Linux).
 
-4. Install the Google API Client Libraries for Python and their dependencies by
-   running, all in one line:
+4. Install the Google API Client Libraries for Python and their dependencies.
+   Ensure you have a `requirements.txt` file (you can download it from the repo)
+   in the same directory, then run:
 
    Mac/Linux:
    ```
-   pip3 install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib PyOpenSSL
+   pip3 install -r requirements.txt
    ```
 
    Windows:
    ```
-   pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib PyOpenSSL
+   pip install -r requirements.txt
    ```
 
    **Note**: On Windows, you may need to do this on a Command Prompt window that
