@@ -3,7 +3,14 @@ import os
 import shutil
 import tempfile
 from unittest.mock import patch, MagicMock, call
-import import_mailbox_to_gmail
+import importlib.util
+import sys
+
+# Load the module dynamically
+spec = importlib.util.spec_from_file_location("import_mailbox_to_gmail", "import-mailbox-to-gmail.py")
+import_mailbox_to_gmail = importlib.util.module_from_spec(spec)
+sys.modules["import_mailbox_to_gmail"] = import_mailbox_to_gmail
+spec.loader.exec_module(import_mailbox_to_gmail)
 
 class TestImport(unittest.TestCase):
 
