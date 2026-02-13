@@ -22,8 +22,7 @@ jobs:
         pip install -r requirements.txt
     - name: Run pylint
       run: |
-        pylint import-mailbox-to-gmail.py
-        pylint run_real_import_test.py
+        pylint --recursive=y .
     - name: Markdown Lint
       uses: nosborn/github-action-markdown-cli@v3.3.0
       with:
@@ -49,7 +48,7 @@ jobs:
         pip install -r requirements.txt
     - name: Run tests
       run: |
-        python -m unittest discover .
+        python -m unittest discover tests
 
   build-docker:
     runs-on: ubuntu-latest

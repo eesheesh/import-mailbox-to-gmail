@@ -193,9 +193,11 @@ def main():
     print(f"Importing into {target_email} with label 'Test Import'...")
 
     # Run import
+    parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    script_path = os.path.join(parent_dir, "import-mailbox-to-gmail.py")
     cmd = [
         sys.executable,
-        "import-mailbox-to-gmail.py",
+        script_path,
         "--json", creds_path,
         "--dir", temp_dir
     ]
