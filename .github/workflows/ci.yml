@@ -22,7 +22,7 @@ jobs:
         pip install -r requirements.txt
     - name: Run pylint
       run: |
-        pylint import_mailbox_to_gmail.py
+        pylint import-mailbox-to-gmail.py
         pylint run_real_import_test.py
     - name: Markdown Lint
       uses: nosborn/github-action-markdown-cli@v3.3.0
@@ -73,10 +73,10 @@ jobs:
         pip install -r requirements.txt
     - name: Build EXE
       run: |
-        pyinstaller --onefile import_mailbox_to_gmail.py
+        pyinstaller --onefile import-mailbox-to-gmail.py
     - name: Verify EXE runs
       run: |
-        ./dist/import_mailbox_to_gmail.exe --help
+        ./dist/import-mailbox-to-gmail.exe --help
 
   build-exe-macos:
     runs-on: macos-latest

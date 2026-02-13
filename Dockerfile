@@ -4,7 +4,7 @@ WORKDIR /usr/src/app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY import_mailbox_to_gmail.py .
+COPY import-mailbox-to-gmail.py .
 
-ENTRYPOINT [ "python", "import_mailbox_to_gmail.py" ]
+ENTRYPOINT [ "python", "import-mailbox-to-gmail.py" ]
 CMD [ "--help" ]

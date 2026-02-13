@@ -23,7 +23,7 @@ def create_executable():
             sys.exit(1)
 
     print("Running PyInstaller...")
-    subprocess.run([sys.executable, '-m', 'PyInstaller', '--onefile', 'import_mailbox_to_gmail.py'])
+    subprocess.run([sys.executable, '-m', 'PyInstaller', '--onefile', 'import-mailbox-to-gmail.py'])
 
 if __name__ == '__main__':
     if run_tests():

@@ -195,7 +195,7 @@ def main():
     # Run import
     cmd = [
         sys.executable,
-        "import_mailbox_to_gmail.py",
+        "import-mailbox-to-gmail.py",
         "--json", creds_path,
         "--dir", temp_dir
     ]

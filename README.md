@@ -98,7 +98,7 @@ script directly.
 
 ### Option 2: Running the Python script
 
-1. Download the script - [import_mailbox_to_gmail.py](https://github.com/google/import-mailbox-to-gmail/releases/download/v1.5/import_mailbox_to_gmail.py).
+1. Download the script - [import-mailbox-to-gmail.py](https://github.com/google/import-mailbox-to-gmail/releases/download/v1.5/import-mailbox-to-gmail.py).
 
 2. [Download](https://www.python.org/downloads/) and install Python 3 (latest
    version) for your operating system if needed.
@@ -157,19 +157,19 @@ script directly.
    Mac/Linux:
 
    ```bash
-   python3 import_mailbox_to_gmail.py --json Credentials.json --dir C:\mbox
+   python3 import-mailbox-to-gmail.py --json Credentials.json --dir C:\mbox
    ```
 
    Windows:
 
    ```cmd
-   python import_mailbox_to_gmail.py --json Credentials.json --dir C:\mbox
+   python import-mailbox-to-gmail.py --json Credentials.json --dir C:\mbox
    ```
 
-   * Replace `import_mailbox_to_gmail.py` with the full path of
-     import_mailbox_to_gmail.py - usually
-     `~/Downloads/import_mailbox_to_gmail.py` on Mac/Linux or
-     `%USERPROFILE%\Downloads\import_mailbox_to_gmail.py` on Windows.
+   * Replace `import-mailbox-to-gmail.py` with the full path of
+     import-mailbox-to-gmail.py - usually
+     `~/Downloads/import-mailbox-to-gmail.py` on Mac/Linux or
+     `%USERPROFILE%\Downloads\import-mailbox-to-gmail.py` on Windows.
    * Replace `Credentials.json` with the path to the JSON file from step 12
      above.
    * Replace `C:\mbox` with the path to the folder you created in step 5.
