@@ -24,7 +24,7 @@ if [[ -z "${TOOL_pyinstaller}" || -z "${TOOL_pyi_makespec}" ]]; then
     exit 1
 fi
 
-python2 \
+python3 \
     "${TOOL_pyi_makespec}" \
     --name "${NAME}" \
     --specpath "${BUILD_DIR}" \
@@ -39,7 +39,7 @@ if [[ "${_exit_code}" -ne 0 ]]; then
     exit ${_exit_code}
 fi
          
-python2 \
+python3 \
     "${TOOL_pyinstaller}" \
     --noconfirm \
     --clean \
