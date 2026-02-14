@@ -1,5 +1,5 @@
-[MESSAGES CONTROL]
-disable=
+[BASIC]
+good-names=import-mailbox-to-gmail
 
 [FORMAT]
 indent-string='  '

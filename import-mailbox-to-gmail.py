@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# pylint: disable=invalid-name
 """Import mbox files to a specified label for many users.
 
 Liron Newman lironn@google.com
