@@ -57,8 +57,10 @@ class TestImport(unittest.TestCase):
     args.fix_msgid = True
     args.replace_quoted_printable = True
     args.num_retries = 3
+    args.log = 'test.log'
+    args.httplib2debuglevel = 0
 
-    import_mailbox_to_gmail.args = args
+    import_mailbox_to_gmail.ARGS = args
 
     # Call the function that processes the mbox files
     result = import_mailbox_to_gmail.process_mbox_files(
