@@ -31,7 +31,10 @@ class TestImport(unittest.TestCase):
 
 
   def tearDown(self):
-    shutil.rmtree(self.test_dir)
+    try:
+      shutil.rmtree(self.test_dir)
+    except OSError as e:
+      print(f"Warning: Failed to clean up {self.test_dir}: {e}")
 
   @patch('import_mailbox_to_gmail.discovery.build')
   def test_import(self, mock_build):

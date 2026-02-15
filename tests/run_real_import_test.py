@@ -294,7 +294,10 @@ def main():
     # Cleanup
     if os.path.exists(temp_dir):
       print(f"Cleaning up {temp_dir}...")
-      shutil.rmtree(temp_dir)
+      try:
+        shutil.rmtree(temp_dir)
+      except OSError as e:
+        print(f"Warning: Failed to clean up {temp_dir}: {e}")
 
 if __name__ == "__main__":
   main()
