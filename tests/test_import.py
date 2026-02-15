@@ -5,6 +5,8 @@ import shutil
 import tempfile
 import importlib.util
 import sys
+import mailbox
+import email.message
 from unittest.mock import patch, MagicMock
 
 # Load the module dynamically
@@ -112,6 +114,226 @@ class TestImport(unittest.TestCase):
     # Assertions
     # We expect 1 failed label (the one corresponding to test.mbox)
     self.assertEqual(result[2], 1)  # result[2] is number_of_labels_failed
+
+  @patch('import_mailbox_to_gmail.discovery.build')
+  def test_import_message_failure(self, mock_build):
+    """Test that failed message import increments the failure counter."""
+    mock_service = MagicMock()
+    mock_build.return_value = mock_service
+
+    mock_service.users().labels().list().execute.return_value = {'labels': []}
+    mock_service.users().labels().create().execute.return_value = {'id': 'LABEL_1', 'name': 'test'}
+
+    # Mock import_ to raise exception
+    mock_service.users().messages().import_().execute.side_effect = Exception("Import Failed")
+
+    args = MagicMock()
+    args.dir = self.test_dir
+    args.from_message = 0
+    args.fix_msgid = True
+    args.replace_quoted_printable = True
+    args.num_retries = 1
+    args.log = 'test.log'
+    args.httplib2debuglevel = 0
+    import_mailbox_to_gmail.ARGS = args
+
+    result = import_mailbox_to_gmail.process_mbox_files(self.username, mock_service, [])
+
+    # Expect 2 messages failed (sample.mbox has 2 messages)
+    self.assertEqual(result[4], 2) # result[4] is number_of_messages_failed
+    self.assertEqual(result[3], 0) # result[3] is number_of_messages_imported_without_error
+
+  @patch('import_mailbox_to_gmail.process_user')
+  @patch('import_mailbox_to_gmail.setup_logging')
+  @patch('os.walk')
+  def test_main_user_failure_counter(self, mock_walk, mock_setup_logging, mock_process_user):
+    """Test that failed user processing increments the user failure counter."""
+    mock_process_user.return_value = None # Simulate failure
+
+    # Mock os.walk to return one user
+    mock_walk.return_value = iter([
+        (self.test_dir, [self.username], []) # root
+    ])
+
+    with patch('logging.info') as mock_logging_info:
+        # We need to simulate arguments passed to main
+        import_mailbox_to_gmail.main(['--dir', self.test_dir, '--json', 'creds.json'])
+
+        # Check for user failure logging
+        found = False
+        for call in mock_logging_info.call_args_list:
+            args, _ = call
+            if len(args) > 1 and args[0] == '    %d users failed' and args[1] == 1:
+                found = True
+                break
+        self.assertTrue(found, "Did not find expected logging for user failure count")
+
+  @patch('import_mailbox_to_gmail.discovery.build')
+  def test_args_noreplaceqp(self, mock_build):
+    """Test --noreplaceqp argument behavior."""
+    mock_service = MagicMock()
+    mock_build.return_value = mock_service
+    mock_service.users().labels().list().execute.return_value = {'labels': []}
+    mock_service.users().labels().create().execute.return_value = {'id': 'LABEL_1', 'name': 'test'}
+    mock_service.users().messages().import_().execute.return_value = {'id': 'MSG_ID'}
+
+    # Create a mbox with quoted-printable content type
+    mbox_path = os.path.join(self.user_dir, 'qp.mbox')
+    mbox = mailbox.mbox(mbox_path)
+    msg = email.message.Message()
+    msg['Subject'] = 'Test QP'
+    msg['Content-Type'] = 'text/quoted-printable'
+    msg.set_payload('Test')
+    mbox.add(msg)
+    mbox.flush()
+    mbox.close()
+
+    # Test with replace_quoted_printable=True (default)
+    args = MagicMock()
+    args.dir = self.test_dir
+    args.from_message = 0
+    args.fix_msgid = True
+    args.replace_quoted_printable = True
+    args.num_retries = 1
+    args.log = 'test.log'
+    args.httplib2debuglevel = 0
+    import_mailbox_to_gmail.ARGS = args
+
+    with patch('import_mailbox_to_gmail.import_message') as mock_import_message:
+        mock_import_message.return_value = True
+        import_mailbox_to_gmail.process_mbox_files(self.username, mock_service, [])
+
+        # Verify call arguments
+        # First call, first message (sample.mbox) - we skip it as we are testing qp.mbox
+        # Actually process_mbox_files processes all mbox files.
+        # We should probably clear user dir first or only have qp.mbox
+        # But sample.mbox is there from setUp.
+
+        # Find the call for qp.mbox message
+        found_replaced = False
+        for call in mock_import_message.call_args_list:
+            msg_arg = call[0][2]
+            if msg_arg['Subject'] == 'Test QP':
+                if 'text/plain' in msg_arg['Content-Type']:
+                    found_replaced = True
+        self.assertTrue(found_replaced, "Should have replaced text/quoted-printable with text/plain")
+
+    # Test with replace_quoted_printable=False
+    args.replace_quoted_printable = False
+
+    with patch('import_mailbox_to_gmail.import_message') as mock_import_message:
+        mock_import_message.return_value = True
+        import_mailbox_to_gmail.process_mbox_files(self.username, mock_service, [])
+
+        found_original = False
+        for call in mock_import_message.call_args_list:
+            msg_arg = call[0][2]
+            if msg_arg['Subject'] == 'Test QP':
+                if 'text/quoted-printable' in msg_arg['Content-Type']:
+                    found_original = True
+        self.assertTrue(found_original, "Should NOT have replaced text/quoted-printable")
+
+  @patch('import_mailbox_to_gmail.discovery.build')
+  def test_args_no_fix_msgid(self, mock_build):
+    """Test --no-fix-msgid argument behavior."""
+    mock_service = MagicMock()
+    mock_build.return_value = mock_service
+    mock_service.users().labels().list().execute.return_value = {'labels': []}
+    mock_service.users().labels().create().execute.return_value = {'id': 'LABEL_1', 'name': 'test'}
+    mock_service.users().messages().import_().execute.return_value = {'id': 'MSG_ID'}
+
+    # Create a mbox with missing brackets in Message-ID
+    mbox_path = os.path.join(self.user_dir, 'nomsgid.mbox')
+    mbox = mailbox.mbox(mbox_path)
+    msg = email.message.Message()
+    msg['Subject'] = 'Test NoMsgID'
+    msg['Message-ID'] = 'no-brackets@example.com'
+    msg.set_payload('Test')
+    mbox.add(msg)
+    mbox.flush()
+    mbox.close()
+
+    # Test with fix_msgid=True (default)
+    args = MagicMock()
+    args.dir = self.test_dir
+    args.from_message = 0
+    args.fix_msgid = True
+    args.replace_quoted_printable = True
+    args.num_retries = 1
+    args.log = 'test.log'
+    args.httplib2debuglevel = 0
+    import_mailbox_to_gmail.ARGS = args
+
+    with patch('import_mailbox_to_gmail.import_message') as mock_import_message:
+        mock_import_message.return_value = True
+        import_mailbox_to_gmail.process_mbox_files(self.username, mock_service, [])
+
+        found_fixed = False
+        for call in mock_import_message.call_args_list:
+            msg_arg = call[0][2]
+            if msg_arg['Subject'] == 'Test NoMsgID':
+                if msg_arg['Message-ID'] == '<no-brackets@example.com>':
+                    found_fixed = True
+        self.assertTrue(found_fixed, "Should have fixed Message-ID brackets")
+
+    # Test with fix_msgid=False
+    args.fix_msgid = False
+
+    with patch('import_mailbox_to_gmail.import_message') as mock_import_message:
+        mock_import_message.return_value = True
+        import_mailbox_to_gmail.process_mbox_files(self.username, mock_service, [])
+
+        found_original = False
+        for call in mock_import_message.call_args_list:
+            msg_arg = call[0][2]
+            if msg_arg['Subject'] == 'Test NoMsgID':
+                if msg_arg['Message-ID'] == 'no-brackets@example.com':
+                    found_original = True
+        self.assertTrue(found_original, "Should NOT have fixed Message-ID brackets")
+
+  @patch('import_mailbox_to_gmail.discovery.build')
+  def test_args_from_message(self, mock_build):
+    """Test --from_message argument behavior."""
+    mock_service = MagicMock()
+    mock_build.return_value = mock_service
+    mock_service.users().labels().list().execute.return_value = {'labels': []}
+    mock_service.users().labels().create().execute.return_value = {'id': 'LABEL_1', 'name': 'test'}
+    mock_service.users().messages().import_().execute.return_value = {'id': 'MSG_ID'}
+
+    # Use sample.mbox which has 2 messages.
+    # Set from_message=1, should import only the second message (index 1)
+
+    args = MagicMock()
+    args.dir = self.test_dir
+    args.from_message = 1
+    args.fix_msgid = True
+    args.replace_quoted_printable = True
+    args.num_retries = 1
+    args.log = 'test.log'
+    args.httplib2debuglevel = 0
+    import_mailbox_to_gmail.ARGS = args
+
+    with patch('import_mailbox_to_gmail.import_message') as mock_import_message:
+        mock_import_message.return_value = True
+        import_mailbox_to_gmail.process_mbox_files(self.username, mock_service, [])
+
+        # Should be called once for sample.mbox (2nd message)
+        # Note: process_mbox_files loops over all mbox files.
+        # Ensure we only have sample.mbox or count correctly.
+        # setUp copies sample.mbox to test.mbox.
+
+        count = 0
+        for call in mock_import_message.call_args_list:
+            # Check if this call is for test.mbox (label 'test')
+            # process_mbox_files doesn't pass filename to import_message, but label_id.
+            # We can check the message subject if needed.
+            msg_arg = call[0][2]
+            if msg_arg['Subject'] == 'Test message 2':
+               count += 1
+            if msg_arg['Subject'] == 'Test message 1':
+               self.fail("Should have skipped Test message 1")
+
+        self.assertEqual(count, 1)
 
 if __name__ == '__main__':
   unittest.main()

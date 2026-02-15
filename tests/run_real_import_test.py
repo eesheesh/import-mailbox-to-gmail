@@ -181,6 +181,26 @@ def generate_test_data(user_dir):
   # Always create a fresh dummy mbox to ensure controlled test data
   create_dummy_mbox(dst_mbox_path, message_id, date_string)
 
+  # Append invalid message to Test Import.mbox
+  print(f"Appending invalid message to {dst_mbox_path}...")
+  mbox = mailbox.mbox(dst_mbox_path)
+  msg = email.message.Message()
+  msg['Subject'] = 'Invalid Headers Message'
+  msg['Date'] = date_string
+  msg['Message-ID'] = f"<{uuid.uuid4()}@test.local>"
+  msg['To'] = 'recipient@example.com'
+  # Add duplicate From headers
+  msg.add_header('From', 'sender1@example.com')
+  msg.add_header('From', 'sender2@example.com')
+  msg.set_payload('This message has two From headers.')
+  mbox.add(msg)
+  mbox.flush()
+  mbox.close()
+
+  # Create Outbox.mbox (invalid label)
+  outbox_path = os.path.join(user_dir, "Outbox.mbox")
+  create_dummy_mbox(outbox_path, f"<{uuid.uuid4()}@test.local>", date_string)
+
   return message_id, date_string
 
 
@@ -204,6 +224,9 @@ def main():
     print(f"Message-ID: {message_id}")
     print(f"Importing into {target_email} with label 'Test Import'...")
 
+    # Log file
+    log_file = os.path.join(temp_dir, 'import.log')
+
     # Run import
     parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     script_path = os.path.join(parent_dir, "import-mailbox-to-gmail.py")
@@ -211,14 +234,35 @@ def main():
         sys.executable,
         script_path,
         "--json", creds_path,
-        "--dir", temp_dir
+        "--dir", temp_dir,
+        "--log", log_file
     ]
 
     subprocess.check_call(cmd)
 
-    print("\nImport script finished. Starting verification...")
+    print("\nImport script finished. Verifying logs and result...")
 
-    # Verify
+    # Read log file
+    with open(log_file, 'r', encoding='utf-8') as f:
+        log_content = f.read()
+
+    # Check for skipped Outbox label
+    # "Skipping label 'Outbox' because it can't be created"
+    if "Skipping label 'Outbox' because it can't be created" not in log_content:
+        print("FAILURE: Log does not indicate that 'Outbox' label was skipped.")
+        sys.exit(1)
+    else:
+        print("SUCCESS: Log indicates 'Outbox' label was skipped.")
+
+    # Check for failed message
+    # "Failed to import mbox message"
+    if "Failed to import mbox message" not in log_content:
+        print("FAILURE: Log does not indicate message failure (expected due to invalid headers).")
+        sys.exit(1)
+    else:
+        print("SUCCESS: Log indicates message failure.")
+
+    # Verify successful import
     try:
       service = get_service(creds_path, target_email)
       # The label name is derived from the filename "Test Import.mbox" -> "Test Import"
