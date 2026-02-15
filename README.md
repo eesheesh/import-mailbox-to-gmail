@@ -81,15 +81,14 @@ notes below.
 You can either run the pre-compiled executable (easiest) or run the Python
 script directly.
 
-### Option 1: Using the executable (Recommended for Windows/macOS)
+### Option 1: Using the executable (Recommended for Windows)
 
 1. Download the latest release for your operating system (e.g.,
    `import-mailbox-to-gmail.exe` for Windows) from the Releases page.
-   **Note**: Executables are provided for Windows and macOS only. Linux users
+   **Note**: Executables are provided for Windows only. macOS and Linux users
    should use Option 2.
 
-2. Open a **Command Prompt** (CMD) window (on Windows) / **Terminal** window (on
-   Mac).
+2. Open a **Command Prompt** (CMD) window (on Windows).
 
 3. Create a folder for the mbox files, for example `C:\mbox` (see step 5 below).
 
@@ -104,13 +103,13 @@ script directly.
    version) for your operating system if needed.
 
 3. Open a **Command Prompt** (CMD) window (on Windows) / **Terminal** window
-   (on Linux).
+   (on macOS/Linux).
 
 4. Install the Google API Client Libraries for Python and their dependencies.
    Ensure you have a `requirements.txt` file (you can download it from the repo)
    in the same directory, then run:
 
-   Mac/Linux:
+   macOS/Linux:
 
    ```bash
    pip3 install -r requirements.txt
@@ -154,7 +153,7 @@ script directly.
 
 8. To start the migration, run the following command (one line):
 
-   Mac/Linux:
+   macOS/Linux:
 
    ```bash
    python3 import-mailbox-to-gmail.py --json Credentials.json --dir C:\mbox
