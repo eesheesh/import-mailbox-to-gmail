@@ -122,10 +122,12 @@ class TestImport(unittest.TestCase):
     mock_build.return_value = mock_service
 
     mock_service.users().labels().list().execute.return_value = {'labels': []}
-    mock_service.users().labels().create().execute.return_value = {'id': 'LABEL_1', 'name': 'test'}
+    mock_service.users().labels().create().execute.return_value = {
+        'id': 'LABEL_1', 'name': 'test'}
 
     # Mock import_ to raise exception
-    mock_service.users().messages().import_().execute.side_effect = Exception("Import Failed")
+    mock_service.users().messages().import_().execute.side_effect = Exception(
+        "Import Failed")
 
     args = MagicMock()
     args.dir = self.test_dir
@@ -137,7 +139,8 @@ class TestImport(unittest.TestCase):
     args.httplib2debuglevel = 0
     import_mailbox_to_gmail.ARGS = args
 
-    result = import_mailbox_to_gmail.process_mbox_files(self.username, mock_service, [])
+    result = import_mailbox_to_gmail.process_mbox_files(
+        self.username, mock_service, [])
 
     # Expect 2 messages failed (sample.mbox has 2 messages)
     self.assertEqual(result[4], 2) # result[4] is number_of_messages_failed
@@ -146,7 +149,7 @@ class TestImport(unittest.TestCase):
   @patch('import_mailbox_to_gmail.process_user')
   @patch('import_mailbox_to_gmail.setup_logging')
   @patch('os.walk')
-  def test_main_user_failure_counter(self, mock_walk, mock_setup_logging, mock_process_user):
+  def test_main_user_failure_counter(self, mock_walk, _, mock_process_user):
     """Test that failed user processing increments the user failure counter."""
     mock_process_user.return_value = None # Simulate failure
 
@@ -156,17 +159,18 @@ class TestImport(unittest.TestCase):
     ])
 
     with patch('logging.info') as mock_logging_info:
-        # We need to simulate arguments passed to main
-        import_mailbox_to_gmail.main(['--dir', self.test_dir, '--json', 'creds.json'])
+      # We need to simulate arguments passed to main
+      import_mailbox_to_gmail.main(
+          ['--dir', self.test_dir, '--json', 'creds.json'])
 
-        # Check for user failure logging
-        found = False
-        for call in mock_logging_info.call_args_list:
-            args, _ = call
-            if len(args) > 1 and args[0] == '    %d users failed' and args[1] == 1:
-                found = True
-                break
-        self.assertTrue(found, "Did not find expected logging for user failure count")
+      # Check for user failure logging
+      found = False
+      for call in mock_logging_info.call_args_list:
+        args, _ = call
+        if len(args) > 1 and args[0] == '    %d users failed' and args[1] == 1:
+          found = True
+          break
+      self.assertTrue(found, "Did not find expected logging for user failure count")
 
   @patch('import_mailbox_to_gmail.discovery.build')
   def test_args_noreplaceqp(self, mock_build):
@@ -174,8 +178,10 @@ class TestImport(unittest.TestCase):
     mock_service = MagicMock()
     mock_build.return_value = mock_service
     mock_service.users().labels().list().execute.return_value = {'labels': []}
-    mock_service.users().labels().create().execute.return_value = {'id': 'LABEL_1', 'name': 'test'}
-    mock_service.users().messages().import_().execute.return_value = {'id': 'MSG_ID'}
+    mock_service.users().labels().create().execute.return_value = {
+        'id': 'LABEL_1', 'name': 'test'}
+    mock_service.users().messages().import_().execute.return_value = {
+        'id': 'MSG_ID'}
 
     # Create a mbox with quoted-printable content type
     mbox_path = os.path.join(self.user_dir, 'qp.mbox')
@@ -200,38 +206,38 @@ class TestImport(unittest.TestCase):
     import_mailbox_to_gmail.ARGS = args
 
     with patch('import_mailbox_to_gmail.import_message') as mock_import_message:
-        mock_import_message.return_value = True
-        import_mailbox_to_gmail.process_mbox_files(self.username, mock_service, [])
+      mock_import_message.return_value = True
+      import_mailbox_to_gmail.process_mbox_files(self.username, mock_service, [])
 
-        # Verify call arguments
-        # First call, first message (sample.mbox) - we skip it as we are testing qp.mbox
-        # Actually process_mbox_files processes all mbox files.
-        # We should probably clear user dir first or only have qp.mbox
-        # But sample.mbox is there from setUp.
+      # Verify call arguments
+      # First call, first message (sample.mbox) - we skip it as we are testing qp.mbox
+      # Actually process_mbox_files processes all mbox files.
+      # We should probably clear user dir first or only have qp.mbox
+      # But sample.mbox is there from setUp.
 
-        # Find the call for qp.mbox message
-        found_replaced = False
-        for call in mock_import_message.call_args_list:
-            msg_arg = call[0][2]
-            if msg_arg['Subject'] == 'Test QP':
-                if 'text/plain' in msg_arg['Content-Type']:
-                    found_replaced = True
-        self.assertTrue(found_replaced, "Should have replaced text/quoted-printable with text/plain")
+      # Find the call for qp.mbox message
+      found_replaced = False
+      for call in mock_import_message.call_args_list:
+        msg_arg = call[0][2]
+        if msg_arg['Subject'] == 'Test QP':
+          if 'text/plain' in msg_arg['Content-Type']:
+            found_replaced = True
+      self.assertTrue(found_replaced, "Should have replaced text/quoted-printable with text/plain")
 
     # Test with replace_quoted_printable=False
     args.replace_quoted_printable = False
 
     with patch('import_mailbox_to_gmail.import_message') as mock_import_message:
-        mock_import_message.return_value = True
-        import_mailbox_to_gmail.process_mbox_files(self.username, mock_service, [])
+      mock_import_message.return_value = True
+      import_mailbox_to_gmail.process_mbox_files(self.username, mock_service, [])
 
-        found_original = False
-        for call in mock_import_message.call_args_list:
-            msg_arg = call[0][2]
-            if msg_arg['Subject'] == 'Test QP':
-                if 'text/quoted-printable' in msg_arg['Content-Type']:
-                    found_original = True
-        self.assertTrue(found_original, "Should NOT have replaced text/quoted-printable")
+      found_original = False
+      for call in mock_import_message.call_args_list:
+        msg_arg = call[0][2]
+        if msg_arg['Subject'] == 'Test QP':
+          if 'text/quoted-printable' in msg_arg['Content-Type']:
+            found_original = True
+      self.assertTrue(found_original, "Should NOT have replaced text/quoted-printable")
 
   @patch('import_mailbox_to_gmail.discovery.build')
   def test_args_no_fix_msgid(self, mock_build):
@@ -239,8 +245,10 @@ class TestImport(unittest.TestCase):
     mock_service = MagicMock()
     mock_build.return_value = mock_service
     mock_service.users().labels().list().execute.return_value = {'labels': []}
-    mock_service.users().labels().create().execute.return_value = {'id': 'LABEL_1', 'name': 'test'}
-    mock_service.users().messages().import_().execute.return_value = {'id': 'MSG_ID'}
+    mock_service.users().labels().create().execute.return_value = {
+        'id': 'LABEL_1', 'name': 'test'}
+    mock_service.users().messages().import_().execute.return_value = {
+        'id': 'MSG_ID'}
 
     # Create a mbox with missing brackets in Message-ID
     mbox_path = os.path.join(self.user_dir, 'nomsgid.mbox')
@@ -265,31 +273,31 @@ class TestImport(unittest.TestCase):
     import_mailbox_to_gmail.ARGS = args
 
     with patch('import_mailbox_to_gmail.import_message') as mock_import_message:
-        mock_import_message.return_value = True
-        import_mailbox_to_gmail.process_mbox_files(self.username, mock_service, [])
+      mock_import_message.return_value = True
+      import_mailbox_to_gmail.process_mbox_files(self.username, mock_service, [])
 
-        found_fixed = False
-        for call in mock_import_message.call_args_list:
-            msg_arg = call[0][2]
-            if msg_arg['Subject'] == 'Test NoMsgID':
-                if msg_arg['Message-ID'] == '<no-brackets@example.com>':
-                    found_fixed = True
-        self.assertTrue(found_fixed, "Should have fixed Message-ID brackets")
+      found_fixed = False
+      for call in mock_import_message.call_args_list:
+        msg_arg = call[0][2]
+        if msg_arg['Subject'] == 'Test NoMsgID':
+          if msg_arg['Message-ID'] == '<no-brackets@example.com>':
+            found_fixed = True
+      self.assertTrue(found_fixed, "Should have fixed Message-ID brackets")
 
     # Test with fix_msgid=False
     args.fix_msgid = False
 
     with patch('import_mailbox_to_gmail.import_message') as mock_import_message:
-        mock_import_message.return_value = True
-        import_mailbox_to_gmail.process_mbox_files(self.username, mock_service, [])
+      mock_import_message.return_value = True
+      import_mailbox_to_gmail.process_mbox_files(self.username, mock_service, [])
 
-        found_original = False
-        for call in mock_import_message.call_args_list:
-            msg_arg = call[0][2]
-            if msg_arg['Subject'] == 'Test NoMsgID':
-                if msg_arg['Message-ID'] == 'no-brackets@example.com':
-                    found_original = True
-        self.assertTrue(found_original, "Should NOT have fixed Message-ID brackets")
+      found_original = False
+      for call in mock_import_message.call_args_list:
+        msg_arg = call[0][2]
+        if msg_arg['Subject'] == 'Test NoMsgID':
+          if msg_arg['Message-ID'] == 'no-brackets@example.com':
+            found_original = True
+      self.assertTrue(found_original, "Should NOT have fixed Message-ID brackets")
 
   @patch('import_mailbox_to_gmail.discovery.build')
   def test_args_from_message(self, mock_build):
@@ -297,8 +305,10 @@ class TestImport(unittest.TestCase):
     mock_service = MagicMock()
     mock_build.return_value = mock_service
     mock_service.users().labels().list().execute.return_value = {'labels': []}
-    mock_service.users().labels().create().execute.return_value = {'id': 'LABEL_1', 'name': 'test'}
-    mock_service.users().messages().import_().execute.return_value = {'id': 'MSG_ID'}
+    mock_service.users().labels().create().execute.return_value = {
+        'id': 'LABEL_1', 'name': 'test'}
+    mock_service.users().messages().import_().execute.return_value = {
+        'id': 'MSG_ID'}
 
     # Use sample.mbox which has 2 messages.
     # Set from_message=1, should import only the second message (index 1)
@@ -314,26 +324,26 @@ class TestImport(unittest.TestCase):
     import_mailbox_to_gmail.ARGS = args
 
     with patch('import_mailbox_to_gmail.import_message') as mock_import_message:
-        mock_import_message.return_value = True
-        import_mailbox_to_gmail.process_mbox_files(self.username, mock_service, [])
+      mock_import_message.return_value = True
+      import_mailbox_to_gmail.process_mbox_files(self.username, mock_service, [])
 
-        # Should be called once for sample.mbox (2nd message)
-        # Note: process_mbox_files loops over all mbox files.
-        # Ensure we only have sample.mbox or count correctly.
-        # setUp copies sample.mbox to test.mbox.
+      # Should be called once for sample.mbox (2nd message)
+      # Note: process_mbox_files loops over all mbox files.
+      # Ensure we only have sample.mbox or count correctly.
+      # setUp copies sample.mbox to test.mbox.
 
-        count = 0
-        for call in mock_import_message.call_args_list:
-            # Check if this call is for test.mbox (label 'test')
-            # process_mbox_files doesn't pass filename to import_message, but label_id.
-            # We can check the message subject if needed.
-            msg_arg = call[0][2]
-            if msg_arg['Subject'] == 'Test message 2':
-               count += 1
-            if msg_arg['Subject'] == 'Test message 1':
-               self.fail("Should have skipped Test message 1")
+      count = 0
+      for call in mock_import_message.call_args_list:
+        # Check if this call is for test.mbox (label 'test')
+        # process_mbox_files doesn't pass filename to import_message, but label_id.
+        # We can check the message subject if needed.
+        msg_arg = call[0][2]
+        if msg_arg['Subject'] == 'Test message 2':
+          count += 1
+        if msg_arg['Subject'] == 'Test message 1':
+          self.fail("Should have skipped Test message 1")
 
-        self.assertEqual(count, 1)
+      self.assertEqual(count, 1)
 
 if __name__ == '__main__':
   unittest.main()
