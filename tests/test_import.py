@@ -351,5 +351,29 @@ class TestImport(unittest.TestCase):
 
       self.assertEqual(count, 1)
 
+  @patch('import_mailbox_to_gmail.process_mbox_files')
+  @patch('import_mailbox_to_gmail.discovery.build')
+  @patch('import_mailbox_to_gmail.AuthorizedHttp')
+  @patch('import_mailbox_to_gmail.get_credentials')
+  @patch('import_mailbox_to_gmail.set_user_agent')
+  def test_process_user_builds_service_without_cache(self, mock_set_ua, mock_get_creds, mock_authed_http, mock_build, mock_process_mbox_files):
+    """Test that process_user builds the service with cache_discovery=False."""
+    mock_get_creds.return_value = MagicMock()
+    mock_set_ua.return_value = MagicMock()
+    mock_authed_http.return_value = MagicMock()
+
+    # Mock service to avoid further errors
+    mock_service = MagicMock()
+    mock_build.return_value = mock_service
+    mock_service.users().labels().list().execute.return_value = {'labels': []}
+
+    # Mock process_mbox_files to return success
+    mock_process_mbox_files.return_value = (0, 0, 0, 0, 0)
+
+    import_mailbox_to_gmail.process_user(self.username)
+
+    # Verify discovery.build was called with cache_discovery=False
+    mock_build.assert_called_with('gmail', 'v1', http=mock_authed_http.return_value, cache_discovery=False)
+
 if __name__ == '__main__':
   unittest.main()
