@@ -16,6 +16,7 @@ import email.message
 import uuid
 import random
 import logging
+import traceback
 
 from google.oauth2 import service_account
 from googleapiclient import discovery
@@ -69,21 +70,14 @@ def create_dummy_mbox(filepath, message_id, date_string):
   mbox.close()
 
 def get_label_id(service, user_email, label_name):
-  """Finds the label ID for a given label name, handling pagination."""
-  page_token = None
-  while True:
-    response = execute_with_retry(
-        service.users().labels().list(
-            userId=user_email, pageToken=page_token
-        )
-    )
-    labels = response.get('labels', [])
-    for label in labels:
-      if label['name'].lower() == label_name.lower():
-        return label['id']
-    page_token = response.get('nextPageToken')
-    if not page_token:
-      break
+  """Finds the label ID for a given label name."""
+  response = execute_with_retry(
+      service.users().labels().list(userId=user_email)
+  )
+  labels = response.get('labels', [])
+  for label in labels:
+    if label['name'].lower() == label_name.lower():
+      return label['id']
   return None
 
 def verify_import(service, user_email, label_name, message_id, expected_date, expected_subject): # pylint: disable=too-many-arguments,too-many-positional-arguments
@@ -278,8 +272,9 @@ def main():
         sys.exit(0)
       else:
         sys.exit(1)
-    except Exception as e: # pylint: disable=broad-exception-caught
-      print(f"Verification failed with error: {e}")
+    except Exception: # pylint: disable=broad-exception-caught
+      print("Verification failed with error:")
+      traceback.print_exc()
       print("Note: Ensure your service account has "
             "'https://www.googleapis.com/auth/gmail.readonly' scope authorized.")
       sys.exit(1)
