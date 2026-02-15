@@ -204,6 +204,54 @@ def generate_test_data(user_dir):
   return message_id, date_string
 
 
+def run_and_verify(creds_path, target_email, temp_dir, user_dir):
+  """Runs the import and verifies log output."""
+  message_id, date_string = generate_test_data(user_dir)
+  subject_string = "Test Import Message"
+
+  print(f"\nPrepared test data in {temp_dir}")
+  print(f"Message-ID: {message_id}")
+  print(f"Importing into {target_email} with label 'Test Import'...")
+
+  # Log file
+  log_file = os.path.join(temp_dir, 'import.log')
+
+  # Run import
+  parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+  script_path = os.path.join(parent_dir, "import-mailbox-to-gmail.py")
+  cmd = [
+      sys.executable,
+      script_path,
+      "--json", creds_path,
+      "--dir", temp_dir,
+      "--log", log_file
+  ]
+
+  subprocess.check_call(cmd)
+
+  print("\nImport script finished. Verifying logs and result...")
+
+  # Read log file
+  with open(log_file, 'r', encoding='utf-8') as f:
+    log_content = f.read()
+
+  # Check for skipped Outbox label
+  if "Skipping label 'Outbox' because it can't be created" not in log_content:
+    print("FAILURE: Log does not indicate that 'Outbox' label was skipped.")
+    sys.exit(1)
+  else:
+    print("SUCCESS: Log indicates 'Outbox' label was skipped.")
+
+  # Check for failed message
+  if "Failed to import mbox message" not in log_content:
+    print("FAILURE: Log does not indicate message failure.")
+    sys.exit(1)
+  else:
+    print("SUCCESS: Log indicates message failure.")
+
+  return message_id, date_string, subject_string
+
+
 def main():
   """Main function to run the interactive test."""
   print("Interactive Real Import Test")
@@ -217,57 +265,16 @@ def main():
     user_dir = os.path.join(temp_dir, target_email)
     os.makedirs(user_dir)
 
-    message_id, date_string = generate_test_data(user_dir)
-    subject_string = "Test Import Message"
-
-    print(f"\nPrepared test data in {temp_dir}")
-    print(f"Message-ID: {message_id}")
-    print(f"Importing into {target_email} with label 'Test Import'...")
-
-    # Log file
-    log_file = os.path.join(temp_dir, 'import.log')
-
-    # Run import
-    parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    script_path = os.path.join(parent_dir, "import-mailbox-to-gmail.py")
-    cmd = [
-        sys.executable,
-        script_path,
-        "--json", creds_path,
-        "--dir", temp_dir,
-        "--log", log_file
-    ]
-
-    subprocess.check_call(cmd)
-
-    print("\nImport script finished. Verifying logs and result...")
-
-    # Read log file
-    with open(log_file, 'r', encoding='utf-8') as f:
-        log_content = f.read()
-
-    # Check for skipped Outbox label
-    # "Skipping label 'Outbox' because it can't be created"
-    if "Skipping label 'Outbox' because it can't be created" not in log_content:
-        print("FAILURE: Log does not indicate that 'Outbox' label was skipped.")
-        sys.exit(1)
-    else:
-        print("SUCCESS: Log indicates 'Outbox' label was skipped.")
-
-    # Check for failed message
-    # "Failed to import mbox message"
-    if "Failed to import mbox message" not in log_content:
-        print("FAILURE: Log does not indicate message failure (expected due to invalid headers).")
-        sys.exit(1)
-    else:
-        print("SUCCESS: Log indicates message failure.")
+    message_id, date_string, subject_string = run_and_verify(
+        creds_path, target_email, temp_dir, user_dir)
 
     # Verify successful import
     try:
       service = get_service(creds_path, target_email)
-      # The label name is derived from the filename "Test Import.mbox" -> "Test Import"
+      # The label name is derived from the filename "Test Import.mbox"
       label_name = "Test Import"
-      if verify_import(service, target_email, label_name, message_id, date_string, subject_string):
+      if verify_import(service, target_email, label_name, message_id,
+                       date_string, subject_string):
         sys.exit(0)
       else:
         sys.exit(1)
