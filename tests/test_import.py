@@ -7,6 +7,7 @@ import importlib.util
 import sys
 import mailbox
 import email.message
+import logging
 from unittest.mock import patch, MagicMock
 
 # Load the module dynamically
@@ -21,6 +22,7 @@ class TestImport(unittest.TestCase):
   """Test case for import logic."""
 
   def setUp(self):
+    logging.disable(logging.CRITICAL)
     self.test_dir = tempfile.mkdtemp()
     self.username = 'testuser@example.com'
     self.user_dir = os.path.join(self.test_dir, self.username)
@@ -31,6 +33,7 @@ class TestImport(unittest.TestCase):
 
 
   def tearDown(self):
+    logging.disable(logging.NOTSET)
     try:
       shutil.rmtree(self.test_dir)
     except OSError as e:

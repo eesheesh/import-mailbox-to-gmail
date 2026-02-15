@@ -240,17 +240,20 @@ def process_mbox_file(full_filename, labelname, service, username, labels):
   number_of_failures_in_label = 0
 
   mbox = mailbox.mbox(full_filename)
-  for index, message in enumerate(mbox):
-    if index < ARGS.from_message:
-      continue
-    logging.info("Processing message %d in label '%s'", index, labelname)
+  try:
+    for index, message in enumerate(mbox):
+      if index < ARGS.from_message:
+        continue
+      logging.info("Processing message %d in label '%s'", index, labelname)
 
-    process_message_headers(message)
+      process_message_headers(message)
 
-    if import_message(service, username, message, label_id):
-      number_of_successes_in_label += 1
-    else:
-      number_of_failures_in_label += 1
+      if import_message(service, username, message, label_id):
+        number_of_successes_in_label += 1
+      else:
+        number_of_failures_in_label += 1
+  finally:
+    mbox.close()
 
   logging.info("Finished processing '%s'. %d messages imported "
                "successfully, %d messages failed.",
