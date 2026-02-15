@@ -80,5 +80,38 @@ class TestImport(unittest.TestCase):
     # Check that the messages were imported
     self.assertEqual(mock_service.users().messages().import_().execute.call_count, 2)
 
+  @patch('import_mailbox_to_gmail.discovery.build')
+  def test_import_label_failure(self, mock_build):
+    """Test that failed label creation increments the failure counter."""
+    # Mock the service and its methods
+    mock_service = MagicMock()
+    mock_build.return_value = mock_service
+
+    # Mock the labels().list() call to return no existing labels
+    mock_service.users().labels().list().execute.return_value = {'labels': []}
+
+    # Mock the labels().create() call to raise an exception
+    mock_service.users().labels().create().execute.side_effect = Exception("400 Bad Request")
+
+    # Set up the arguments for the script
+    args = MagicMock()
+    args.dir = self.test_dir
+    args.from_message = 0
+    args.fix_msgid = True
+    args.replace_quoted_printable = True
+    args.num_retries = 1
+    args.log = 'test.log'
+    args.httplib2debuglevel = 0
+
+    import_mailbox_to_gmail.ARGS = args
+
+    # Call the function that processes the mbox files
+    result = import_mailbox_to_gmail.process_mbox_files(
+        self.username, mock_service, [])
+
+    # Assertions
+    # We expect 1 failed label (the one corresponding to test.mbox)
+    self.assertEqual(result[2], 1)  # result[2] is number_of_labels_failed
+
 if __name__ == '__main__':
   unittest.main()

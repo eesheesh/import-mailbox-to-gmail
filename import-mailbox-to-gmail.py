@@ -318,6 +318,7 @@ def process_mbox_files(username, service, labels): # pylint: disable=too-many-lo
           full_filename, labelname, service, username, labels)
 
       if result is None:
+        number_of_labels_failed += 1
         continue
 
       successes, failures = result
