@@ -43,22 +43,23 @@ script directly.
 
 ### Option 1: Using the executable (Recommended for Windows)
 
-1. Download the latest release for your operating system (e.g.,
-   `import-mailbox-to-gmail.exe` for Windows) from the Releases page.
+1. Download `import-mailbox-to-gmail.exe` from
+   [the latest release](https://github.com/google/import-mailbox-to-gmail/releases/latest).
    **Note**: Executables are provided for Windows only. macOS and Linux users
    should use Option 2.
 
-2. Open a **Command Prompt** (CMD) window.
+3. Open a **Command Prompt** (CMD) window.
 
-3. Create a folder for the mbox files, for example `C:\mbox` (see step 5 below).
+4. Create a folder for the mbox files, for example `C:\mbox` (see step 5 below).
 
-4. Follow steps 6-8 below, replacing `python import-mailbox-to-gmail.py` with
+5. Follow steps 6-8 below, replacing `python import-mailbox-to-gmail.py` with
    the path to your downloaded executable (usually
    `%USERPROFILE%\Downloads\import-mailbox-to-gmail.exe`).
 
 ### Option 2: Running the Python script
 
-1. Download the script - [import-mailbox-to-gmail.py](https://github.com/google/import-mailbox-to-gmail/releases/download/v1.5/import-mailbox-to-gmail.py).
+1. Download the script `import-mailbox-to-gmail.py` from
+   [the latest release](https://github.com/google/import-mailbox-to-gmail/releases/latest).
 
 2. [Download](https://www.python.org/downloads/) and install Python 3 (latest
    version) for your operating system if needed.
@@ -70,22 +71,14 @@ script directly.
    Ensure you have a `requirements.txt` file (you can download it from the repo)
    in the same directory, then run:
 
-   macOS/Linux:
-
    ```bash
    pip3 install -r requirements.txt
-   ```
-
-   Windows:
-
-   ```bash
-   pip install -r requirements.txt
    ```
 
    **Note**: On Windows, you may need to do this on a Command Prompt window that
    was run as Administrator.
 
-5. Create a folder for the mbox files, for example `C:\mbox`.
+5. Create a folder for the mbox files, for example `C:\mbox` or `~/mbox`.
 
 6. Under that folder, create a folder for each of the users into which you
    intend to import the mbox files. The folder names should be the users' full
@@ -117,7 +110,7 @@ script directly.
    macOS/Linux:
 
    ```bash
-   python3 import-mailbox-to-gmail.py --json Credentials.json --dir C:\mbox
+   python3 import-mailbox-to-gmail.py --json Credentials.json --dir ~/mbox
    ```
 
    Windows:
@@ -130,8 +123,8 @@ script directly.
      import-mailbox-to-gmail.py - usually
      `~/Downloads/import-mailbox-to-gmail.py` on Mac/Linux or
      `%USERPROFILE%\Downloads\import-mailbox-to-gmail.py` on Windows.
-   * Replace `Credentials.json` with the path to the JSON file from step 12
-     above.
+   * Replace `Credentials.json` with the path of the JSON service account key
+     file created in the previous step.
    * Replace `C:\mbox` with the path to the folder you created in step 5.
 
 The mbox files will now be imported, one by one, into the users' mailboxes. You
@@ -144,7 +137,7 @@ viewing the `import-mailbox-to-gmail.log` file.
   message. This allows you to resume an upload if the process previously
   stopped. (Affects _all_ users and _all_ mbox files)
 
-  e.g. `./import-mailbox-to-gmail.py --from_message 74336`
+  e.g. `python3 import-mailbox-to-gmail.py --from_message 74336`
 
 * If any of the folders have a ".mbox" extension, it will be dropped when
   creating the label for it in Gmail.
@@ -167,7 +160,7 @@ viewing the `import-mailbox-to-gmail.log` file.
   1. Build the image:
 
      ```bash
-     docker build -t google/import-mailbox-to-gmail .
+     docker build -t import-mailbox-to-gmail https://github.com/google/import-mailbox-to-gmail.git
      ```
 
   2. Run the import command:
@@ -176,7 +169,7 @@ viewing the `import-mailbox-to-gmail.log` file.
      docker run --rm -it \
          -v "/local/path/to/auth.json:/auth.json" \
          -v "/local/path/to/mbox:/mbox" \
-         google/import-mailbox-to-gmail --json "/auth.json" --dir "/mbox"
+         import-mailbox-to-gmail --json "/auth.json" --dir "/mbox"
      ```
 
      **Note** `-v` is mounting a local file/directory _/local/path/to/auth.json_
