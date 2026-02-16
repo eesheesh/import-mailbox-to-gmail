@@ -48,11 +48,11 @@ script directly.
    **Note**: Executables are provided for Windows only. macOS and Linux users
    should use Option 2.
 
-3. Open a **Command Prompt** (CMD) window.
+2. Open a **Command Prompt** (CMD) window.
 
-4. Create a folder for the mbox files, for example `C:\mbox` (see step 5 below).
+3. Create a folder for the mbox files, for example `C:\mbox` (see step 5 below).
 
-5. Follow steps 6-8 below, replacing `python import-mailbox-to-gmail.py` with
+4. Follow steps 6-8 below, replacing `python import-mailbox-to-gmail.py` with
    the path to your downloaded executable (usually
    `%USERPROFILE%\Downloads\import-mailbox-to-gmail.exe`).
 
