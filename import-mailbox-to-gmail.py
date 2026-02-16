@@ -383,7 +383,8 @@ def process_user(username):
           httplib2.Http(),
           f'{APPLICATION_NAME}-{APPLICATION_VERSION}')
       authed_http = AuthorizedHttp(credentials, http=http)
-      service = discovery.build('gmail', 'v1', http=authed_http, cache_discovery=False) # pylint: disable=no-member
+      service = discovery.build('gmail', 'v1', http=authed_http,
+                                cache_discovery=False) # pylint: disable=no-member
     except Exception: # pylint: disable=broad-exception-caught
       logging.error("Can't get access token for user %s", username)
       raise
