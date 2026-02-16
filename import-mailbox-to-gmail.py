@@ -36,7 +36,7 @@ from googleapiclient.http import MediaIoBaseUpload
 from googleapiclient.http import set_user_agent
 
 APPLICATION_NAME = 'import-mailbox-to-gmail'
-APPLICATION_VERSION = '1.5'
+APPLICATION_VERSION = '2.0'
 
 SCOPES = ['https://www.googleapis.com/auth/gmail.insert',
           'https://www.googleapis.com/auth/gmail.labels']
