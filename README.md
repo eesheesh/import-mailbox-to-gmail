@@ -13,65 +13,25 @@ into the mailboxes of all users in your domain.
 
 ## A. Creating and authorizing a service account for Gmail API
 
-1. Go to the [Developers Console](https://console.developers.google.com/project)
-   and log in as a domain super administrator.
+The easiest way is to
+[use the automated script to authorize GWMME](https://support.google.com/a/answer/6291304#script).
+The resulting JSON service account key file will work with this script as well.
+It will allow more API scopes than are needed, so you might want to remove them
+after it's created and verified.
 
-2. Create a new project.
+If you don't want to use the automated script, you can follow the manual
+instructions on the same page, but you'll only need to enable Gmail API
+(not all of the other APIs), and only the two Gmail scopes:
 
-   * If you have not used the API console before, select **Create a project**
-     from the **Select a project** dropdown list.
-   * If this is not your first project, use the **Create Project** button.
+```text
+https://www.googleapis.com/auth/gmail.insert, https://www.googleapis.com/auth/gmail.labels
+```
 
-3. Enter "Gmail API" (or any name you prefer) as the project name and press the
-   **Create** button. If this is your first project you must agree to the Terms
-   of Service at this point.
+At the end of either option, you will have a JSON service account key file,
+that you can use to authorize programs to access the Gmail API "insert" and
+"label" scopes of all users in your Google Workspace domain.
 
-4. Click the **Enable and manage APIs** link in the **Use Google APIs** box.
-
-5. Enable the Gmail API - Select the **Gmail API** link and press the **Enable
-   API** button. You can leave the default APIs enabled - it doesn't matter.
-
-6. Click the 3-line icon (**≡**) in the top left corner of the console.
-
-7. Click **IAM & Admin** and select **Service accounts**.
-
-8. Click **Create service account**.
-
-9. Enter a name (for example, "import-mailbox") in the **Name** field.
-
-10. Check the **Furnish a new private key** box and ensure the key type is set
-    to JSON.
-
-11. Check the **Enable G Suite Domain-wide Delegation** box and enter a name in
-    the **Product name for the consent screen** field.
-
-12. Click **Create**. You will see a confirmation message advising that the
-    Service account JSON file has been downloaded to your computer. Make a note
-    of the location and name of this file. **This JSON file contains a private
-    key that potentially allows access to all users in your domain. Protect it
-    like you'd protect your admin password. Don't share it with anyone.**
-
-13. Click **Close**.
-
-14. Click the **View Client ID** link in the **Options** column.
-
-15. Copy the **Client ID** value. You will need this later.
-
-16. Go to [the **Domain-wide Delegation** page of the Admin console for your
-    Google Workspace domain](https://admin.google.com/ac/owl/domainwidedelegation).
-
-17. Under **Client ID**, enter the Client ID collected in step 15.
-
-18. Under **OAuth Scopes**, enter the following:
-
-    ```text
-    https://www.googleapis.com/auth/gmail.insert, https://www.googleapis.com/auth/gmail.labels
-    ```
-
-19. Click **Authorize**.
-
-You can now use the JSON file to authorize programs to access the Gmail API
-"insert" and "label" scopes of all users in your Google Workspace domain.
+**Remember to store this key safely, and don't share it with anyone.**
 
 ## B. Importing mbox files
 
