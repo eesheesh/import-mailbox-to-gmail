@@ -356,7 +356,10 @@ class TestImport(unittest.TestCase):
   @patch('import_mailbox_to_gmail.AuthorizedHttp')
   @patch('import_mailbox_to_gmail.get_credentials')
   @patch('import_mailbox_to_gmail.set_user_agent')
-  def test_process_user_builds_service_without_cache(self, mock_set_ua, mock_get_creds, mock_authed_http, mock_build, mock_process_mbox_files):
+  def test_process_user_builds_service_without_cache(
+      # pylint: disable=too-many-arguments,too-many-positional-arguments
+      self, mock_set_ua, mock_get_creds, mock_authed_http, mock_build,
+      mock_process_mbox_files):
     """Test that process_user builds the service with cache_discovery=False."""
     mock_get_creds.return_value = MagicMock()
     mock_set_ua.return_value = MagicMock()
@@ -373,7 +376,9 @@ class TestImport(unittest.TestCase):
     import_mailbox_to_gmail.process_user(self.username)
 
     # Verify discovery.build was called with cache_discovery=False
-    mock_build.assert_called_with('gmail', 'v1', http=mock_authed_http.return_value, cache_discovery=False)
+    mock_build.assert_called_with(
+        'gmail', 'v1', http=mock_authed_http.return_value,
+        cache_discovery=False)
 
 if __name__ == '__main__':
   unittest.main()
